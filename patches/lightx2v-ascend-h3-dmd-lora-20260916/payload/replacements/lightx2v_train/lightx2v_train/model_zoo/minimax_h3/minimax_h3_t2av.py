@@ -348,9 +348,22 @@ class MiniMaxH3T2AVModel(BaseModel):
     def fsdp2_shard_plan(self, fsdp_config):
         reshard = fsdp_config.get("reshard_after_forward", {})
         blocks = list(self.transformer.token_refiner.refiner_blocks) + list(self.transformer.transformer_blocks)
+        # The official checkpoint intentionally keeps these projections in
+        # float32. FSDP2 requires a uniform dtype within each shard group.
+        fp32_modules = [
+            self.transformer.proj_in,
+            self.transformer.audio_proj_in,
+            self.transformer.time_embedder,
+            self.transformer.proj_out,
+            self.transformer.audio_proj_out,
+        ]
         return [
             {
                 "modules": blocks,
+                "reshard_after_forward": reshard.get("block_reshard", True),
+            },
+            {
+                "modules": fp32_modules,
                 "reshard_after_forward": reshard.get("block_reshard", True),
             },
             {
