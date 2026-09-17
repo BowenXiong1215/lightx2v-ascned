@@ -290,9 +290,12 @@ class MiniMaxH3T2AVModel(BaseModel):
             text_token_tags = text_token_tags[0]
         if text_token_tags.ndim != 1 or text_token_tags.shape[0] != prompt_embeds.shape[1]:
             raise ValueError(f"MiniMax-H3 text_token_tags must contain one tag per prompt embedding row; got {tuple(text_token_tags.shape)} for {prompt_embeds.shape[1]} rows.")
+        # The frozen condition encoder uses inference_mode. Its outputs must
+        # become ordinary tensors before the trainable transformer saves them
+        # for backward (a same-device .to() alone may return the input).
         return {
-            "prompt_embeds": prompt_embeds.to(self.device, dtype=self.running_dtype),
-            "text_token_tags": text_token_tags.to(self.device, dtype=torch.long),
+            "prompt_embeds": prompt_embeds.to(self.device, dtype=self.running_dtype).clone(),
+            "text_token_tags": text_token_tags.to(self.device, dtype=torch.long).clone(),
         }
 
     def encode_prompt_condition(self, prompt):
