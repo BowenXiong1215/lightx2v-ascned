@@ -1,0 +1,10 @@
+# Install torch and torch_npu from the matching Ascend/CANN base image first.
+# The pair must have the same PyTorch ABI version. Do not let pip replace it
+# with the CUDA wheel declared by another environment.
+omegaconf
+diffusers
+transformers
+accelerate
+peft
+safetensors
+loguru
