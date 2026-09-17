@@ -263,6 +263,7 @@ class MiniMaxH3T2AVModel(BaseModel):
                 lora_config,
                 self.transformer,
                 adapter_name="default",
+                autocast_adapter_dtype=False,
             )
         except TypeError:
             self.transformer = inject_adapter_in_model(lora_config, self.transformer)
