@@ -39,9 +39,12 @@ print("Keeping base image framework packages:", constraints)
 PY
 
 python -m pip install --no-cache-dir -c /tmp/ascend-torch-constraints.txt \
-  'diffusers==0.40.0' 'transformers==4.57.6' 'peft==0.18.0' \
-  accelerate omegaconf safetensors loguru einops imageio pillow \
+  'diffusers==0.40.0' 'transformers==5.14.1' 'peft==0.21.0' \
+  'accelerate==1.14.0' 'huggingface-hub>=1.5,<2' \
+  omegaconf safetensors loguru einops imageio pillow \
   ftfy sentencepiece protobuf tqdm requests scipy numpy packaging
+
+python -m pip install --no-cache-dir --no-deps --only-binary=:all: 'torchvision==0.22.1'
 
 if test ! -e "${LIGHTX2V_ROOT}"; then
   git clone https://github.com/ModelTC/LightX2V.git "${LIGHTX2V_ROOT}"
@@ -62,6 +65,8 @@ python - <<'PY'
 import torch
 import torch_npu
 import diffusers
+import torchvision
+from transformers import Qwen3VLVideoProcessor
 from diffusers import MiniMaxH3Transformer3DModel
 
 assert torch.__version__.startswith("2.7.1"), torch.__version__
