@@ -5,6 +5,7 @@ from pathlib import Path
 
 import torch
 import torch.distributed as dist
+from diffusers import AutoencoderKLMiniMaxH3Audio
 from diffusers.utils.export_utils import encode_video
 from diffusers.video_processor import VideoProcessor
 from loguru import logger
@@ -60,18 +61,35 @@ def decode_and_save(model, latents, output_path):
     video = (video.float() * pixel_std + pixel_mean).clamp(0, 1)
     frames = VideoProcessor(vae_scale_factor=16, do_normalize=False).postprocess_video(video, output_type="pil")[0]
 
-    audio = latents.audio.reshape(2, shape.audio_latents, model.audio_latent_channels).permute(0, 2, 1).contiguous()
-    audio_vae = model.audio_vae
+    # On Ascend, the audio VAE can decode valid H3 latents to all-zero samples.
+    # Load a separate CPU copy: the training model's VAE may carry an offload
+    # hook that would move it back to the NPU even after .to("cpu").
+    audio = latents.audio.detach().float().cpu().reshape(
+        2, shape.audio_latents, model.audio_latent_channels
+    ).permute(0, 2, 1).contiguous()
+    model_config = model.config["model"]
+    audio_vae = AutoencoderKLMiniMaxH3Audio.from_pretrained(
+        model.pretrained_model_path,
+        subfolder=model_config.get("audio_vae_subfolder", "audio_vae"),
+        torch_dtype=torch.float32,
+        local_files_only=bool(model_config.get("local_files_only", True)),
+        low_cpu_mem_usage=True,
+    ).eval()
     mean = audio.new_tensor(audio_vae.config.latents_mean).view(1, -1, 1)
     std = audio.new_tensor(audio_vae.config.latents_std).view(1, -1, 1)
-    audio = audio_vae.decode(audio * std + mean, return_dict=False)[0].float().permute(1, 0, 2)
+    with torch.inference_mode():
+        audio = audio_vae.decode(audio * std + mean, return_dict=False)[0].float().permute(1, 0, 2)
+    peak = audio.abs().max().item()
+    if peak == 0.0:
+        raise RuntimeError("H3 CPU audio VAE returned an all-zero waveform.")
+    logger.info("[h3-infer] CPU audio peak={:.6f} rms={:.6f}", peak, audio.square().mean().sqrt().item())
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     encode_video(
         frames,
         fps=24,
         output_path=str(output_path),
-        audio=audio[0].cpu(),
+        audio=audio[0],
         audio_sample_rate=model.audio_sampling_rate,
     )
     logger.info("[h3-infer] saved {}", output_path)
