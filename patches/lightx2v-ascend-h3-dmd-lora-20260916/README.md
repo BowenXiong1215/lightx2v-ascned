@@ -11,3 +11,5 @@ bash patches/lightx2v-ascend-h3-dmd-lora-20260916/install.sh /path/to/LightX2V
 ```
 
 The installer checks source and payload SHA-256 values before writing, and `verify.sh` checks the installed result. Hardware acceptance steps are in `docs/ascend/minimax_h3_4step_dmd_training.md`.
+
+For a fixed-seed sample from a saved student LoRA, run `lightx2v_train/infer_minimax_h3_dmd_fsdp.py` with `torchrun` on the same eight NPU ranks used for training. It reuses the training FSDP2 shard plan and four-step sigma schedule. Ascend generation and media decoding still require hardware validation.
