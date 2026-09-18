@@ -100,7 +100,7 @@ def main():
         apply_fsdp2(model, config)
         logger.info("[h3-infer] rank={} model sharded", dist.get_rank())
 
-        capability = model.capabilities.require(DistributionMatchingCapability)
+        capability = model.ensure_capabilities().require(DistributionMatchingCapability)
         sample = {"conditioning": {"prompt": prompt}}
         shape = capability.latent_shape(
             sample,
