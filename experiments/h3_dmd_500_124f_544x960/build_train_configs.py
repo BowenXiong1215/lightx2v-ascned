@@ -39,9 +39,18 @@ def main():
     train["training"]["output_dir"] = str(package_dir / "output_500")
     train.setdefault("resume", {})["auto_resume"] = False
     train["training"]["student"].pop("checkpoint_path", None)
+    # A full-train fake model lazily allocates two Adam state tensors after its
+    # first update.  With long H3 sequences that leaves too little HBM for the
+    # next student backward pass, so train the fake score model with LoRA too.
+    train["training"]["fake"]["train_type"] = "lora"
+    train["training"]["fake"]["lora"] = copy.deepcopy(
+        train["training"]["student"]["lora"]
+    )
 
     probe = copy.deepcopy(train)
-    probe["training"]["max_train_iters"] = 1
+    # Three steps exercise the steady-state memory footprint after Adam has
+    # allocated its optimizer states; a one-step probe cannot catch that OOM.
+    probe["training"]["max_train_iters"] = 3
     probe["training"]["save_every_iters"] = 1
     probe["training"]["output_dir"] = str(package_dir / "output_probe")
     for name, config in (("h3_probe_1step.yaml", probe), ("h3_train_500step.yaml", train)):
