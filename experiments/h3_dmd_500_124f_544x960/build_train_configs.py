@@ -32,15 +32,12 @@ def main():
     train["training"]["save_every_iters"] = 100
     train["training"]["save_total_limit"] = 6
     train["training"]["dmd"]["num_inference_steps"] = 4
-    # 544x960 exhausted 64 GiB during the student backward pass on 8x910B.
-    # Keep the 124-frame duration but use the verified steady-state canvas for
-    # training; evaluate exported checkpoints at 544x960.
-    train["training"]["dmd"]["generation_shapes"] = [{"value": [124, 320, 576]}]
+    train["training"]["dmd"]["generation_shapes"] = [{"value": [124, 544, 960]}]
     dm = train["model"]["capabilities"]["distribution_matching"]
     dm["video_flow_shift"] = 12.0
     dm["audio_flow_shift"] = 3.0
-    train["training"]["output_dir"] = str(package_dir / "output_500")
-    train.setdefault("resume", {})["auto_resume"] = False
+    train["training"]["output_dir"] = str(package_dir / "output_500_official_v01")
+    train.setdefault("resume", {})["auto_resume"] = True
     train["training"]["student"].pop("checkpoint_path", None)
     train["training"]["student"]["init_lora_path"] = (
         "/hpc-to-ds-0115/x00876811/models/Minimax-h3-Turbo/"
@@ -62,7 +59,8 @@ def main():
     # allocated its optimizer states; a one-step probe cannot catch that OOM.
     probe["training"]["max_train_iters"] = 3
     probe["training"]["save_every_iters"] = 1
-    probe["training"]["output_dir"] = str(package_dir / "output_probe")
+    probe["training"]["output_dir"] = str(package_dir / "output_probe_official_v01")
+    probe.setdefault("resume", {})["auto_resume"] = False
     for name, config in (("h3_probe_3step.yaml", probe), ("h3_train_500step.yaml", train)):
         path = package_dir / name
         path.write_text(yaml.safe_dump(config, sort_keys=False, allow_unicode=True))

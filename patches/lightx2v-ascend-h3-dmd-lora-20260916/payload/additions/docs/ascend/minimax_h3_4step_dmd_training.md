@@ -13,6 +13,7 @@ Ascend path for the official LightX2V-Train MiniMax-H3 DMD recipe.
 - CPU staging before FSDP2 to avoid a full unsharded H3 copy on every NPU
 - HCCL collectives
 - Diffusers `_native_npu` attention dispatched by `torch_npu`
+- chunked global L2 gradient clipping on NPU to bound temporary HBM usage
 
 This is an engineering bring-up recipe. Quality parity must be established on
 Ascend hardware with the same base checkpoint, prompt set, seed, and exported
@@ -46,6 +47,12 @@ before training starts.
 For the LightX2V 544p four-step v0.1 release, use rank 128, alpha 8, video
 shift 12, and audio shift 3. This is a weight-only initialization: optimizer,
 fake-model, scheduler, and iteration state start fresh.
+
+The 124x544x960 v0.1 recipe keeps the public training geometry. On 64 GiB
+NPUs, the NPU path computes the same global L2 clipping coefficient in bounded
+float32 chunks instead of launching one `LpNormV2` over each complete gradient.
+Configure the fake score model as LoRA to avoid allocating full-model Adam
+state after the first iteration.
 
 ## Launch
 

@@ -11,10 +11,10 @@ checkpoint is best. The training config initializes the student from the
 public LightX2V 544p four-step v0.1 LoRA, while the fake score model starts
 with a fresh LoRA. It does not resume the earlier 22-frame run.
 
-Direct training at 124 frames and 544×960 exhausted 64 GiB HBM during the
-student backward pass. The generated config therefore uses the verified
-124×320×576 training canvas; evaluate its checkpoints at 124×544×960.
-Run the three-step probe first. The second and third
+The generated config keeps the official v0.1 target canvas at 124×544×960.
+On 64 GiB Ascend NPUs it uses chunked global gradient clipping and a LoRA fake
+score model to remove the two observed steady-state HBM peaks. Run the
+three-step probe first. The second and third
 steps exercise the steady-state memory footprint after Adam allocates its
 optimizer states.
 
