@@ -296,8 +296,54 @@ class BaseModel(CapabilityProvider):
         return peft_state_dict, auxiliary_state_dict
 
     def load_lora_weights_for_resume(self, lora_path, adapter_name=None, weights_subdir=None):
-        weights_dir = os.path.join(lora_path, weights_subdir) if weights_subdir else lora_path
-        raw = load_file(os.path.join(weights_dir, "pytorch_lora_weights.safetensors"))
+        if os.path.isfile(lora_path):
+            if weights_subdir:
+                raise ValueError("weights_subdir cannot be used when lora_path is a file.")
+            weights_path = lora_path
+        else:
+            weights_dir = os.path.join(lora_path, weights_subdir) if weights_subdir else lora_path
+            weights_path = os.path.join(weights_dir, "pytorch_lora_weights.safetensors")
+        if not os.path.isfile(weights_path):
+            raise RuntimeError(f"LoRA weights not found: {weights_path}")
+
+        raw = load_file(weights_path)
+        # LightX2V's public MiniMax-H3 Turbo checkpoints use the exact PEFT
+        # module keys produced by the Diffusers transformer, including the
+        # adapter name: ``*.lora_A.default.weight``.  Load that format
+        # directly and require a complete shape-compatible adapter so a typo
+        # cannot silently start training from a partially initialized LoRA.
+        native_suffixes = (".lora_A.default.weight", ".lora_B.default.weight")
+        if raw and all(key.removeprefix("transformer.").endswith(native_suffixes) for key in raw):
+            denoiser = self.denoiser_module()
+            native = {key.removeprefix("transformer."): value for key, value in raw.items()}
+            expected = {
+                name: parameter
+                for name, parameter in denoiser.named_parameters()
+                if name.endswith(native_suffixes)
+            }
+            missing = sorted(expected.keys() - native.keys())
+            unexpected = sorted(native.keys() - expected.keys())
+            mismatched = sorted(
+                (name, tuple(native[name].shape), tuple(expected[name].shape))
+                for name in expected.keys() & native.keys()
+                if native[name].shape != expected[name].shape
+            )
+            if missing or unexpected or mismatched:
+                raise RuntimeError(
+                    "Native PEFT LoRA is incompatible with the configured model: "
+                    f"missing={missing[:3]} unexpected={unexpected[:3]} "
+                    f"shape_mismatches={mismatched[:3]}"
+                )
+            incompatible = denoiser.load_state_dict(native, strict=False)
+            missing_lora = [key for key in incompatible.missing_keys if key.endswith(native_suffixes)]
+            if missing_lora or incompatible.unexpected_keys:
+                raise RuntimeError(
+                    "Native PEFT LoRA loading was incomplete: "
+                    f"missing={missing_lora[:3]} unexpected={incompatible.unexpected_keys[:3]}"
+                )
+            logger.info("Loaded native PEFT LoRA initialization from {} tensors={}", weights_path, len(native))
+            return
+
         peft_state_dict = {}
         for key, value in raw.items():
             new_key = key.removeprefix("transformer.")
@@ -309,6 +355,7 @@ class BaseModel(CapabilityProvider):
         incompatible = set_peft_model_state_dict(self.denoiser_module(), peft_state_dict, **load_kwargs)
         if incompatible and incompatible.unexpected_keys:
             logger.warning("Unexpected keys when resuming LoRA: {}", incompatible.unexpected_keys)
+        logger.info("Loaded Diffusers LoRA initialization from {} tensors={}", weights_path, len(peft_state_dict))
 
     def load_auxiliary_weights(
         self,

@@ -43,12 +43,19 @@ validate_bundle() {
 }
 
 validate_target() {
-  local upstream expected relative target actual
+  local upstream expected relative target actual accepted
   while IFS=$'\t' read -r upstream expected relative; do
     target="${TARGET_ROOT}/${relative}"
     test -f "${target}" || { echo "Missing upstream file: ${relative}" >&2; exit 4; }
     actual="$(sha256_file "${target}")"
-    if test "${actual}" != "${upstream}" && test "${actual}" != "${expected}"; then
+    accepted=0
+    if test -f "${PATCH_ROOT}/accepted_previous.tsv" && \
+       awk -F '\t' -v hash="${actual}" -v path="${relative}" \
+         '$1 == hash && $2 == path { found=1 } END { exit !found }' \
+         "${PATCH_ROOT}/accepted_previous.tsv"; then
+      accepted=1
+    fi
+    if test "${actual}" != "${upstream}" && test "${actual}" != "${expected}" && test "${accepted}" -ne 1; then
       echo "Source version mismatch: ${relative}" >&2
       echo "Expected upstream LightX2V commit ${UPSTREAM_COMMIT}" >&2
       exit 4

@@ -38,10 +38,12 @@ python -m py_compile \
   "${TARGET_ROOT}/lightx2v_train/lightx2v_train/runtime/ddp.py" \
   "${TARGET_ROOT}/lightx2v_train/lightx2v_train/model_zoo/base.py" \
   "${TARGET_ROOT}/lightx2v_train/lightx2v_train/model_zoo/minimax_h3/minimax_h3_t2av.py" \
+  "${TARGET_ROOT}/lightx2v_train/lightx2v_train/trainers/dmd/runtime.py" \
   "${TARGET_ROOT}/lightx2v_train/train.py"
 
 grep -q 'backend: hccl' "${TARGET_ROOT}/lightx2v_train/configs/train/dmd/minimax_h3_t2av_dmd_lora_ascend.yaml"
 grep -q 'num_inference_steps: 4' "${TARGET_ROOT}/lightx2v_train/configs/train/dmd/minimax_h3_t2av_dmd_lora_ascend.yaml"
 grep -q 'attention_backend: _native_npu' "${TARGET_ROOT}/lightx2v_train/configs/train/dmd/minimax_h3_t2av_dmd_lora_ascend.yaml"
+grep -q 'student_init_lora_path' "${TARGET_ROOT}/lightx2v_train/lightx2v_train/trainers/dmd/runtime.py"
 
 echo "Static verification: PASS"

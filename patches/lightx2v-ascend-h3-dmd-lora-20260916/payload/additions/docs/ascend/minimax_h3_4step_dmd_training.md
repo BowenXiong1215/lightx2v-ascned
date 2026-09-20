@@ -8,7 +8,7 @@ Ascend path for the official LightX2V-Train MiniMax-H3 DMD recipe.
 - MiniMax-H3 T2AV
 - DMD, four student model evaluations
 - LoRA student (`rank=128`, `alpha=8`)
-- full fake score model
+- configurable full or LoRA fake score model
 - FSDP2 over eight NPUs
 - CPU staging before FSDP2 to avoid a full unsharded H3 copy on every NPU
 - HCCL collectives
@@ -34,6 +34,18 @@ The model path must be the converted Diffusers root containing
 Use the MiniMax-H3-compatible Diffusers revision supplied with the model until
 that implementation is available in a stable Diffusers release; a generic old
 Diffusers wheel does not contain the required transformer or NPU backend.
+
+## Initialize from a public LoRA
+
+`training.student.init_lora_path` accepts a single native PEFT safetensors
+file. Loading occurs after LoRA injection and before FSDP2 wrapping. The loader
+requires every configured adapter tensor to be present with the expected
+shape, so an incompatible rank, target list, or transformer partition fails
+before training starts.
+
+For the LightX2V 544p four-step v0.1 release, use rank 128, alpha 8, video
+shift 12, and audio shift 3. This is a weight-only initialization: optimizer,
+fake-model, scheduler, and iteration state start fresh.
 
 ## Launch
 
